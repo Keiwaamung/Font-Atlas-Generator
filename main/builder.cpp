@@ -357,15 +357,27 @@ namespace fontatlas
                     file_.write("font[\"", 6);
                     file_.write(_fontlist[idx]->name.data(), _fontlist[idx]->name.size());
                     file_.write("\"] = {\n", 7);
+                    {
+                        int n = std::snprintf(fmtbuf_, 1024,
+                            "  ascender=%g,\n"
+                            "  descender=%g,\n"
+                            "  height=%g,\n"
+                            "  max_advance=%g,\n",
+                            (float)ft_.face[idx]->size->metrics.ascender / 64.0f,
+                            (float)ft_.face[idx]->size->metrics.descender / 64.0f,
+                            (float)ft_.face[idx]->size->metrics.height / 64.0f,
+                            (float)ft_.face[idx]->size->metrics.max_advance / 64.0f);
+                        file_.write(fmtbuf_, n);
+                    }
                     for (uint32_t i = 0; i < fontlist_[idx].size(); i += 1)
                     {
                         auto& v = *fontlist_[idx][i];
                         int n = std::snprintf(fmtbuf_, 1024,
                             "  [%u]={"
-                            "%f,%f,%f,%f"
-                            ",%f,%f"
-                            ",%f,%f,%f"
-                            ",%f,%f,%f"
+                            "%g,%g,%g,%g"
+                            ",%g,%g"
+                            ",%g,%g,%g"
+                            ",%g,%g,%g"
                             "},\n",
                             v.code,
                             v.uv_x, v.uv_y, v.uv_width, v.uv_height,
