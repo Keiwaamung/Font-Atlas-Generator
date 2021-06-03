@@ -77,4 +77,20 @@ namespace fontatlas
         
         return std::move(buffer);
     }
+    
+    ScopeCoInitialize::ScopeCoInitialize() : _init(false)
+    {
+        HRESULT hr = CoInitializeEx(0, COINIT_MULTITHREADED);
+        if (hr == S_OK)
+        {
+            _init = true;
+        }
+    }
+    ScopeCoInitialize::~ScopeCoInitialize()
+    {
+        if (_init)
+        {
+            CoUninitialize();
+        }
+    }
 }

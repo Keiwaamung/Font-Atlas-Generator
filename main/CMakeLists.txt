@@ -17,6 +17,8 @@ target_sources(fontatlas PRIVATE
     texture.hpp
     texture.cpp
     utf.hpp
+    builder.hpp
+    builder.cpp
     main.cpp
     fontatlas.manifest
 )

@@ -12,4 +12,13 @@ namespace fontatlas
     
     Buffer readFile(const std::string_view  path);
     Buffer readFile(const std::wstring_view path);
+    
+    class ScopeCoInitialize
+    {
+    private:
+        bool _init = false;
+    public:
+        ScopeCoInitialize();
+        ~ScopeCoInitialize();
+    };
 }
