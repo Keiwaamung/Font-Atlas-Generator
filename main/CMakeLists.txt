@@ -19,6 +19,7 @@ target_sources(fontatlas PRIVATE
     utf.hpp
     builder.hpp
     builder.cpp
+    binding.hpp
     main.cpp
     fontatlas.manifest
 )

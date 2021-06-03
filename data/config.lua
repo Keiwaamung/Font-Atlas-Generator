@@ -1,17 +1,8 @@
+local fontatlas = require("fontatlas")
 
----@diagnostic disable-next-line: lowercase-global
-config = {
-    -- Microsoft YaHei, 24pt
-    {
-        font = "C:\\Windows\\Fonts\\msyh.ttc",
-        face = 0,
-        size = 24,
-        ranges = {
-            { 32, 126 }, -- unicode code point
-        },
-        texts = {
-            [[]], -- utf8 text
-        },
-        output = "ui24",
-    }
-}
+local builder = fontatlas.Builder()
+builder:addFont("Sans24", "C:\\Windows\\Fonts\\msyh.ttc", 0, 24)
+--builder:addFont("Sans24", "SourceHanSansSC-Regular.otf", 0, 24)
+builder:addRange("Sans24", 32, 126)
+builder:addRange("Sans24", 0x4E00, 0x9FFF)
+builder:build("font/", false, 2048, 2048, 1, 0)

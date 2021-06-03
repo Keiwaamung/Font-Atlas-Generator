@@ -12,6 +12,10 @@ namespace fontatlas
 {
     bool Builder::addFont(const std::string_view name, const std::string_view path, uint32_t face, uint32_t size)
     {
+        if (!std::filesystem::is_regular_file(toWide(path)))
+        {
+            return false;
+        }
         std::string name_;
         name_ = name;
         FontConfig cfg_ = {};
