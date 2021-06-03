@@ -1,4 +1,7 @@
 imgui.ini
 *.png
+*.lua
+*.json
 *.ttf
 *.otf
+!config.lua

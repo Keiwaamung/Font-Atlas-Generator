@@ -5,6 +5,7 @@
 #include <cassert>
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include "ft2build.h"
 #include FT_FREETYPE_H
 
@@ -72,9 +73,6 @@ namespace fontatlas
         bool is_multi_channel, uint32_t texture_width, uint32_t texture_height, uint32_t texture_edge,
         uint32_t glyph_edge)
     {
-        // create dir
-        std::filesystem::create_directories(toWide(path));
-        
         struct Wrapper
         {
             FT_Library library = NULL;
@@ -98,7 +96,6 @@ namespace fontatlas
                 }
             }
         };
-        
         FT_Error fterr_ = 0;
         Wrapper  ft_;
         
@@ -129,12 +126,27 @@ namespace fontatlas
         // get all glyph size all sort
         struct GlyphInfo
         {
+            // basic
             uint32_t code;
             uint32_t width;
             uint32_t height;
             uint32_t font;
+            // on texture
+            float uv_x;
+            float uv_y;
+            float uv_width;
+            float uv_height;
+            // on drawing
+            float draw_width;
+            float draw_height;
+            float h_pen_x;
+            float h_pen_y;
+            float h_advance;
+            float v_pen_x;
+            float v_pen_y;
+            float v_advance;
         };
-        std::vector<GlyphInfo> _glyphlist;
+        std::vector<GlyphInfo> glyphlist_;
         for (uint32_t idx = 0; idx < _fontlist.size(); idx += 1)
         {
             for (uint32_t c : _fontlist[idx]->code)
@@ -145,13 +157,12 @@ namespace fontatlas
                     fterr_ = FT_Load_Glyph(ft_.face[idx], cidx, FT_LOAD_DEFAULT);
                     if (fterr_ == FT_Err_Ok)
                     {
-                        GlyphInfo info_ = {
-                            c,
-                            ft_.face[idx]->glyph->bitmap.width,
-                            ft_.face[idx]->glyph->bitmap.rows,
-                            idx,
-                        };
-                        _glyphlist.push_back(info_);
+                        GlyphInfo info_ = {};
+                        info_.code = c;
+                        info_.width = ft_.face[idx]->glyph->bitmap.width,
+                        info_.height = ft_.face[idx]->glyph->bitmap.rows,
+                        info_.font = idx;
+                        glyphlist_.push_back(info_);
                     }
                 }
             }
@@ -178,8 +189,8 @@ namespace fontatlas
                 }
             }
         };
-        GlyphInfoComparer _comparer;
-        std::sort(_glyphlist.begin(), _glyphlist.end(), _comparer);
+        GlyphInfoComparer comparer_;
+        std::sort(glyphlist_.begin(), glyphlist_.end(), comparer_);
         
         // generate font atlas
         {
@@ -197,7 +208,7 @@ namespace fontatlas
                 tex.clear();
                 image += 1;
             };
-            auto upload_bitmap = [&](FT_Bitmap& bitmap)
+            auto upload_bitmap = [&](GlyphInfo& info, FT_GlyphSlot& glyph, FT_Bitmap& bitmap)
             {
                 if (bitmap.num_grays == 256)
                 {
@@ -278,6 +289,19 @@ namespace fontatlas
                         }
                         buffer += bitmap.pitch;
                     }
+                    // save data
+                    info.uv_x = (float)x;
+                    info.uv_y = (float)y;
+                    info.uv_width = (float)glyphx;
+                    info.uv_height = (float)glyphy;
+                    info.draw_width = (float)glyph->metrics.width / 64.0f;
+                    info.draw_height = (float)glyph->metrics.height / 64.0f;
+                    info.h_pen_x = (float)glyph->metrics.horiBearingX / 64.0f;
+                    info.h_pen_y = (float)glyph->metrics.horiBearingY / 64.0f;
+                    info.h_advance = (float)glyph->metrics.horiAdvance / 64.0f;
+                    info.v_pen_x = (float)glyph->metrics.vertBearingX / 64.0f;
+                    info.v_pen_y = (float)glyph->metrics.vertBearingY / 64.0f;
+                    info.v_advance = (float)glyph->metrics.vertAdvance / 64.0f;
                     // move to right
                     x += (glyphx + texture_edge);
                     down = std::max(down, glyphy);
@@ -285,19 +309,76 @@ namespace fontatlas
             };
             auto all_glyph = [&]()
             {
-                for (auto& v : _glyphlist)
+                for (auto& v : glyphlist_)
                 {
                     FT_UInt cidx = FT_Get_Char_Index(ft_.face[v.font], v.code);
                     fterr_ = FT_Load_Glyph(ft_.face[v.font], cidx, FT_LOAD_DEFAULT | FT_LOAD_RENDER);
                     assert(fterr_ == FT_Err_Ok);
                     if (fterr_ == FT_Err_Ok)
                     {
-                        upload_bitmap(ft_.face[v.font]->glyph->bitmap);
+                        upload_bitmap(v, ft_.face[v.font]->glyph, ft_.face[v.font]->glyph->bitmap);
                     }
                 }
             };
+            std::filesystem::create_directories(toWide(path));
             all_glyph();
             save_image();
+        }
+        
+        // get all glyph info all sort
+        std::vector<std::vector<GlyphInfo*>> fontlist_(_fontlist.size());
+        for (auto& v : glyphlist_)
+        {
+            fontlist_[v.font].push_back(&v);
+        }
+        struct PGlyphInfoComparer
+        {
+            bool operator()(const GlyphInfo* a, const GlyphInfo* b) const
+            {   
+                return a->code < b->code;
+            }
+        };
+        PGlyphInfoComparer pcomparer_;
+        for (auto& v : fontlist_)
+        {
+            std::sort(v.begin(), v.end(), pcomparer_);
+        }
+        
+        // generate index file
+        {
+            char fmtbuf_[1024] = {};
+            std::wstring wpath_ = toWide(path) + L"\\index.lua";
+            std::ofstream file_(wpath_, std::ios::binary |std::ios::out | std::ios::trunc);
+            if (file_.is_open())
+            {
+                file_.write("local font = {}\n", 16);
+                for (uint32_t idx = 0; idx < fontlist_.size(); idx += 1)
+                {
+                    file_.write("font[\"", 6);
+                    file_.write(_fontlist[idx]->name.data(), _fontlist[idx]->name.size());
+                    file_.write("\"] = {\n", 7);
+                    for (uint32_t i = 0; i < fontlist_[idx].size(); i += 1)
+                    {
+                        auto& v = *fontlist_[idx][i];
+                        int n = std::snprintf(fmtbuf_, 1024,
+                            "  [%u]={"
+                            "%f,%f,%f,%f"
+                            ",%f,%f"
+                            ",%f,%f,%f"
+                            ",%f,%f,%f"
+                            "},\n",
+                            v.code,
+                            v.uv_x, v.uv_y, v.uv_width, v.uv_height,
+                            v.draw_width, v.draw_height,
+                            v.h_pen_x, v.h_pen_y, v.h_advance,
+                            v.v_pen_x, v.v_pen_y, v.v_advance);
+                        file_.write(fmtbuf_, n);
+                    }
+                    file_.write("}\n", 2);
+                }
+                file_.write("return font\n", 12);
+                file_.close();
+            }
         }
         
         return true;
