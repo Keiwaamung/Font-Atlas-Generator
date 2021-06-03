@@ -1,0 +1,7 @@
+.vscode
+build/*
+bin/*
+freetype/build/*
+freetype/freetype-2.10.4/*
+lua/build/*
+lua/lua-5.4.3/*
