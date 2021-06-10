@@ -5,3 +5,4 @@ imgui.ini
 *.ttf
 *.otf
 !config.lua
+pyhwork/*
