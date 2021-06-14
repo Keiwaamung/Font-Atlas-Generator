@@ -27,6 +27,8 @@ namespace fontatlas
                 {"addCode", &addCode},
                 {"addRange", &addRange},
                 {"addText", &addText},
+                {"setImageFileFormat", &setImageFileFormat},
+                {"setMultiChannelEnable", &setMultiChannelEnable},
                 {"build", &build},
                 {NULL, NULL},
             };
@@ -101,17 +103,36 @@ namespace fontatlas
             lua_pushboolean(L, ret);
             return 1;
         }
+        static int setImageFileFormat(lua_State* L)
+        {
+            Builder* self = luaCast(L, 1);
+            size_t length = 0;
+            const char* format = luaL_checklstring(L, 2, &length);
+            ImageFileFormat format_v = ImageFileFormat::PNG;
+            if (std::strncmp(format, "bmp", (length < 3) ? length : 3) == 0)
+            {
+                format_v = ImageFileFormat::BMP;
+            }
+            self->setImageFileFormat(format_v);
+            return 0;
+        }
+        static int setMultiChannelEnable(lua_State* L)
+        {
+            Builder* self = luaCast(L, 1);
+            const bool v = lua_toboolean(L, 2);
+            self->setMultiChannelEnable(v);
+            return 0;
+        }
         static int build(lua_State* L)
         {
             Builder* self = luaCast(L, 1);
             const char* path = luaL_checkstring(L, 2);
-            const bool is_multi_channel = lua_toboolean(L, 3);
-            const uint32_t texture_width = (uint32_t)luaL_checkinteger(L, 4);
-            const uint32_t texture_height = (uint32_t)luaL_checkinteger(L, 5);
-            const uint32_t texture_edge = (uint32_t)luaL_checkinteger(L, 6);
-            const uint32_t glyph_edge = (uint32_t)luaL_checkinteger(L, 7);
+            const uint32_t texture_width = (uint32_t)luaL_checkinteger(L, 3);
+            const uint32_t texture_height = (uint32_t)luaL_checkinteger(L, 4);
+            const uint32_t texture_edge = (uint32_t)luaL_checkinteger(L, 5);
+            const uint32_t glyph_edge = (uint32_t)luaL_checkinteger(L, 6);
             const bool ret = self->build(path,
-                is_multi_channel, texture_width, texture_height, texture_edge,
+                texture_width, texture_height, texture_edge,
                 glyph_edge);
             lua_pushboolean(L, ret);
             return 1;

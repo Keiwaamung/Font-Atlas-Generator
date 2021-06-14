@@ -1,4 +1,5 @@
 #pragma once
+#include "texture.hpp"
 #include <string>
 #include <string_view>
 #include <set>
@@ -21,13 +22,17 @@ namespace fontatlas
     private:
         std::vector<FontConfig*> _fontlist;
         std::unordered_map<std::string, FontConfig> _font;
+        ImageFileFormat _fileformat = ImageFileFormat::PNG;
+        bool _multichannel = false;
     public:
         bool addFont(const std::string_view name, const std::string_view path, uint32_t face, uint32_t size);
         bool addCode(const std::string_view name, uint32_t c);
         bool addRange(const std::string_view name, uint32_t a, uint32_t b);
         bool addText(const std::string_view name, const std::string_view text);
+        void setImageFileFormat(ImageFileFormat format);
+        void setMultiChannelEnable(bool v);
         bool build(const std::string_view path,
-            bool is_multi_channel, uint32_t texture_width, uint32_t texture_height, uint32_t texture_edge,
+            uint32_t texture_width, uint32_t texture_height, uint32_t texture_edge,
             uint32_t glyph_edge);
     };
 }

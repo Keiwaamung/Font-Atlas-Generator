@@ -1,5 +1,6 @@
 #include "builder.hpp"
 #include "common.hpp"
+#include "logger.hpp"
 #include "texture.hpp"
 #include "utf.hpp"
 #include <cassert>
@@ -69,8 +70,16 @@ namespace fontatlas
         }
         return false;
     }
+    void Builder::setImageFileFormat(ImageFileFormat format)
+    {
+        _fileformat = format;
+    }
+    void Builder::setMultiChannelEnable(bool v)
+    {
+        _multichannel = v;
+    }
     bool Builder::build(const std::string_view path,
-        bool is_multi_channel, uint32_t texture_width, uint32_t texture_height, uint32_t texture_edge,
+        uint32_t texture_width, uint32_t texture_height, uint32_t texture_edge,
         uint32_t glyph_edge)
     {
         struct Wrapper
@@ -132,6 +141,7 @@ namespace fontatlas
             uint32_t height;
             uint32_t font;
             // on texture
+            uint32_t channel;
             float uv_x;
             float uv_y;
             float uv_width;
@@ -164,6 +174,10 @@ namespace fontatlas
                         info_.font = idx;
                         glyphlist_.push_back(info_);
                     }
+                }
+                else
+                {
+                    logger::warn("font \"%s\": glyph %u not found\n", _fontlist[idx]->name.c_str(), c);
                 }
             }
         }
@@ -200,13 +214,27 @@ namespace fontatlas
             uint32_t y = texture_edge;
             uint32_t down = 0;
             uint32_t channel = 0; // 0 r 1 g 2 b 3 a
+            uint32_t image_glyphs = 0;
             auto save_image = [&]()
             {
                 char buffer_[256] = {};
-                snprintf(buffer_, 256, "%s%u.png", path.data(), image);
-                tex.save(buffer_);
+                switch(_fileformat)
+                {
+                case ImageFileFormat::BMP:
+                    snprintf(buffer_, 256, "%s%u.bmp", path.data(), image);
+                    tex.save(buffer_, ImageFileFormat::BMP);
+                    logger::info("%u.bmp: %u glyphs\n", image, image_glyphs);
+                    break;
+                case ImageFileFormat::PNG:
+                default:
+                    snprintf(buffer_, 256, "%s%u.png", path.data(), image);
+                    tex.save(buffer_, ImageFileFormat::PNG);
+                    logger::info("%u.png: %u glyphs\n", image, image_glyphs);
+                    break;
+                }
                 tex.clear();
                 image += 1;
+                image_glyphs = 0;
             };
             auto upload_bitmap = [&](GlyphInfo& info, FT_GlyphSlot& glyph, FT_Bitmap& bitmap)
             {
@@ -226,7 +254,13 @@ namespace fontatlas
                     // check vertical space
                     if ((y + glyphy) > (texture_height - texture_edge))
                     {
-                        if (is_multi_channel)
+                        if (!_multichannel)
+                        {
+                            
+                            // next image
+                            save_image();
+                        }
+                        else
                         {
                             if (channel >= 3)
                             {
@@ -239,11 +273,6 @@ namespace fontatlas
                                 // next channel
                                 channel += 1;
                             }
-                        }
-                        else
-                        {
-                            // next image
-                            save_image();
                         }
                         // reset
                         x = texture_edge;
@@ -261,7 +290,7 @@ namespace fontatlas
                         uint32_t index = 0;
                         for (uint32_t penx = startx; penx < endx; penx += 1)
                         {
-                            if (!is_multi_channel)
+                            if (!_multichannel)
                             {
                                 tex.pixel(penx, peny) = fontatlas::Color(255, 255, 255, buffer[index]);
                             }
@@ -290,17 +319,19 @@ namespace fontatlas
                         buffer += bitmap.pitch;
                     }
                     // save data
+                    info.channel = channel;
                     info.uv_x = (float)x;
                     info.uv_y = (float)y;
-                    info.uv_width = (float)glyphx;
+                    info.uv_width  = (float)glyphx;
                     info.uv_height = (float)glyphy;
-                    info.draw_width = (float)glyph->metrics.width / 64.0f;
-                    info.draw_height = (float)glyph->metrics.height / 64.0f;
-                    info.h_pen_x = (float)glyph->metrics.horiBearingX / 64.0f;
-                    info.h_pen_y = (float)glyph->metrics.horiBearingY / 64.0f;
+                    const float offset_xy = (float)glyph_edge;
+                    info.draw_width  = (float)glyph->metrics.width  / 64.0f + 2.0f * offset_xy;
+                    info.draw_height = (float)glyph->metrics.height / 64.0f + 2.0f * offset_xy;
+                    info.h_pen_x = (float)glyph->metrics.horiBearingX / 64.0f - offset_xy;
+                    info.h_pen_y = (float)glyph->metrics.horiBearingY / 64.0f + offset_xy;
                     info.h_advance = (float)glyph->metrics.horiAdvance / 64.0f;
-                    info.v_pen_x = (float)glyph->metrics.vertBearingX / 64.0f;
-                    info.v_pen_y = (float)glyph->metrics.vertBearingY / 64.0f;
+                    info.v_pen_x = (float)glyph->metrics.vertBearingX / 64.0f - offset_xy;
+                    info.v_pen_y = (float)glyph->metrics.vertBearingY / 64.0f + offset_xy;
                     info.v_advance = (float)glyph->metrics.vertAdvance / 64.0f;
                     // move to right
                     x += (glyphx + texture_edge);
@@ -317,6 +348,7 @@ namespace fontatlas
                     if (fterr_ == FT_Err_Ok)
                     {
                         upload_bitmap(v, ft_.face[v.font]->glyph, ft_.face[v.font]->glyph->bitmap);
+                        image_glyphs += 1;
                     }
                 }
             };
@@ -359,10 +391,12 @@ namespace fontatlas
                     file_.write("\"] = {\n", 7);
                     {
                         int n = std::snprintf(fmtbuf_, 1024,
+                            "  multi_channel=%s,\n"
                             "  ascender=%g,\n"
                             "  descender=%g,\n"
                             "  height=%g,\n"
                             "  max_advance=%g,\n",
+                            _multichannel ? "true" : "false",
                             (float)ft_.face[idx]->size->metrics.ascender / 64.0f,
                             (float)ft_.face[idx]->size->metrics.descender / 64.0f,
                             (float)ft_.face[idx]->size->metrics.height / 64.0f,
@@ -372,19 +406,38 @@ namespace fontatlas
                     for (uint32_t i = 0; i < fontlist_[idx].size(); i += 1)
                     {
                         auto& v = *fontlist_[idx][i];
-                        int n = std::snprintf(fmtbuf_, 1024,
-                            "  [%u]={"
-                            "%g,%g,%g,%g"
-                            ",%g,%g"
-                            ",%g,%g,%g"
-                            ",%g,%g,%g"
-                            "},\n",
-                            v.code,
-                            v.uv_x, v.uv_y, v.uv_width, v.uv_height,
-                            v.draw_width, v.draw_height,
-                            v.h_pen_x, v.h_pen_y, v.h_advance,
-                            v.v_pen_x, v.v_pen_y, v.v_advance);
-                        file_.write(fmtbuf_, n);
+                        if (!_multichannel)
+                        {
+                            int n = std::snprintf(fmtbuf_, 1024,
+                                "  [%u]={"
+                                "%g,%g,%g,%g"
+                                ",%g,%g"
+                                ",%g,%g,%g"
+                                ",%g,%g,%g"
+                                "},\n",
+                                v.code,
+                                v.uv_x, v.uv_y, v.uv_width, v.uv_height,
+                                v.draw_width, v.draw_height,
+                                v.h_pen_x, v.h_pen_y, v.h_advance,
+                                v.v_pen_x, v.v_pen_y, v.v_advance);
+                            file_.write(fmtbuf_, n);
+                        }
+                        else
+                        {
+                            int n = std::snprintf(fmtbuf_, 1024,
+                                "  [%u]={"
+                                "%u,%g,%g,%g,%g"
+                                ",%g,%g"
+                                ",%g,%g,%g"
+                                ",%g,%g,%g"
+                                "},\n",
+                                v.code,
+                                v.channel, v.uv_x, v.uv_y, v.uv_width, v.uv_height,
+                                v.draw_width, v.draw_height,
+                                v.h_pen_x, v.h_pen_y, v.h_advance,
+                                v.v_pen_x, v.v_pen_y, v.v_advance);
+                            file_.write(fmtbuf_, n);
+                        }
                     }
                     file_.write("}\n", 2);
                 }

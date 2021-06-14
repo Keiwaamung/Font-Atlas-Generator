@@ -3,6 +3,10 @@ local M = {}
 
 ---@class fontatlas.Builder
 local C = {}
+---@param format '"png"' | '"bmp"'
+function C:setImageFileFormat(format) end
+---@param v boolean
+function C:setMultiChannelEnable(v) end
 ---@param name string
 ---@param path string
 ---@param face number

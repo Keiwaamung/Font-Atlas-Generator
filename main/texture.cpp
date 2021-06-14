@@ -11,19 +11,76 @@
 
 namespace fontatlas
 {
-    uint32_t Texture::width() { return _width; }
-    uint32_t Texture::height() { return _height; }
-    Color& Texture::pixel(uint32_t x, uint32_t y)
+    bool Texture::_saveBMP(const std::wstring_view path)
     {
-        assert(x < _width && y < _height);
-        return _pixels[y * _width + x];
+        // create file
+        Microsoft::WRL::Wrappers::FileHandle file;
+        file.Attach(CreateFileW(
+            path.data(),
+            GENERIC_READ | GENERIC_WRITE,
+            0,
+            NULL,
+            CREATE_ALWAYS,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL
+        ));
+        if (!file.IsValid())
+        {
+            return false;
+        }
+        
+        // method
+        auto write_ = [&](void* data, size_t size) -> bool {
+            assert(size <= 0x7FFFFFFF);
+            if (size > 0x7FFFFFFF)
+            {
+                return false;
+            }
+            DWORD write_size_ = 0;
+            if (FALSE == WriteFile(file.Get(), data, size & 0x7FFFFFFF, &write_size_, NULL))
+            {
+                assert(false);
+                return false;
+            }
+            assert(write_size_ == size);
+            if (write_size_ != size)
+            {
+                return false;
+            }
+            return true;
+        };
+        
+        // require file size
+        const size_t total_file_size_   = sizeof(BITMAPFILEHEADER)
+                                        + sizeof(BITMAPINFOHEADER)
+                                        + sizeof(Color) * _width * _height; // always 4 byte align, so we can multiple them simply
+        assert(total_file_size_ <= 0x7FFFFFFF);
+        
+        // head data
+        BITMAPFILEHEADER bmp_file_head_ = {};
+        bmp_file_head_.bfType = 0x4D42; // "BM"
+        bmp_file_head_.bfSize = total_file_size_;
+        bmp_file_head_.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+        BITMAPINFOHEADER bmp_info_head_ = {};
+        bmp_info_head_.biSize = sizeof(BITMAPINFOHEADER);
+        bmp_info_head_.biWidth = _width;
+        bmp_info_head_.biHeight = _height;
+        bmp_info_head_.biPlanes = 1;
+        bmp_info_head_.biBitCount = 32;
+        bmp_info_head_.biCompression = BI_RGB;
+        
+        // write data
+        if (!write_(&bmp_file_head_, sizeof(bmp_file_head_))) return false;
+        if (!write_(&bmp_info_head_, sizeof(bmp_info_head_))) return false;
+        Color* px = _pixels.data() + _height * _width;
+        for (uint32_t v = _height; v > 0; v += 1)
+        {
+            px -= _width;
+            if (!write_(px, sizeof(Color) * _width)) return false;
+        }
+        return true;
     }
-    bool Texture::save(const std::string_view path)
-    {
-        std::wstring wpath = std::move(toWide(path));
-        return save(wpath);
-    }
-    bool Texture::save(const std::wstring_view path)
+    bool Texture::_savePNG(const std::wstring_view path)
     {
         HRESULT hr = 0;
         
@@ -112,6 +169,30 @@ namespace fontatlas
         }
         
         return true;
+    }
+    uint32_t Texture::width() { return _width; }
+    uint32_t Texture::height() { return _height; }
+    Color& Texture::pixel(uint32_t x, uint32_t y)
+    {
+        assert(x < _width && y < _height);
+        return _pixels[y * _width + x];
+    }
+    bool Texture::save(const std::string_view path, ImageFileFormat format)
+    {
+        std::wstring wpath = std::move(toWide(path));
+        return save(wpath);
+    }
+    bool Texture::save(const std::wstring_view path, ImageFileFormat format)
+    {
+        switch(format)
+        {
+        case ImageFileFormat::BMP:
+            return _saveBMP(path);
+        case ImageFileFormat::PNG:
+            return _savePNG(path);
+        default:
+            return false;
+        }
     }
     void Texture::clear(Color c)
     {

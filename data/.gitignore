@@ -1,8 +1,10 @@
 imgui.ini
 *.png
+*.bmp
 *.lua
 *.json
 *.ttf
 *.otf
+*.log
 !config.lua
 pyhwork/*

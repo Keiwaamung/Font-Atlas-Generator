@@ -14,6 +14,8 @@ target_include_directories(fontatlas PRIVATE
 target_sources(fontatlas PRIVATE
     common.hpp
     common.cpp
+    logger.hpp
+    logger.cpp
     texture.hpp
     texture.cpp
     utf.hpp
