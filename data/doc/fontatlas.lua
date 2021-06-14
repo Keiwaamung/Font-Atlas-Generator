@@ -27,13 +27,12 @@ function C:addRange(name, a, b) end
 ---@return boolean
 function C:addText(name, text) end
 ---@param path string
----@param is_multi_channel boolean
 ---@param texture_width number
 ---@param texture_height number
 ---@param texture_edge number
 ---@param glyph_edge number
 ---@return boolean
-function C:build(path, is_multi_channel, texture_width, texture_height, texture_edge, glyph_edge) end
+function C:build(path, texture_width, texture_height, texture_edge, glyph_edge) end
 
 ---@return fontatlas.Builder
 function M.Builder() end
