@@ -16,11 +16,63 @@ namespace
     };
 };
 
-void logger::write(level lv, const char* str) noexcept
+void logger::write(const char* str) noexcept
 {
-    return write(lv, str, std::strlen(str));
+    return write(str, std::strlen(str));
 }
-void logger::write(level lv, const char* str, size_t len) noexcept
+void logger::write(const char* str, size_t len) noexcept
+{
+    if (len == 0)
+    {
+        return;
+    }
+    assert(str != nullptr || len == 0);
+    OutputDebugStringA(str);
+    if (_file != static_cast<void*>(INVALID_HANDLE_VALUE))
+    {
+        DWORD cnt_ = 0;
+        WriteFile(static_cast<HANDLE>(_file), str, 0xFFFFFFFF & len, &cnt_, nullptr);
+        FlushFileBuffers(static_cast<HANDLE>(_file));
+    }
+}
+void logger::writef(const char* fmt, ...) noexcept
+{
+    va_list arg_{};
+    va_start(arg_, fmt);
+    writefv(fmt, static_cast<void*>(arg_));
+    va_end(arg_);
+}
+void logger::writefv(const char* fmt, void* arg) noexcept
+{
+    const int size_ = std::vsnprintf(nullptr, 0, fmt, static_cast<va_list>(arg));
+    if (size_ > 0 && size_ < 64)
+    {
+        char buffer_[64] = {};
+        std::vsnprintf(buffer_, 64, fmt, static_cast<va_list>(arg));
+        write(buffer_, size_);
+    }
+    else if (size_ >= 64)
+    {
+        const size_t heap_size_ = size_ + 1;
+        char* heap_ = static_cast<char*>(::HeapAlloc(::GetProcessHeap(), HEAP_ZERO_MEMORY, heap_size_));
+        if (heap_ != NULL)
+        {
+            std::vsnprintf(heap_, heap_size_, fmt, static_cast<va_list>(arg));
+            write(heap_, size_);
+            ::HeapFree(::GetProcessHeap(), 0, heap_);
+        }
+        else
+        {
+            log(level::error, "out of memory");
+        }
+    }
+    // else ???
+}
+void logger::log(level lv, const char* str) noexcept
+{
+    return log(lv, str, std::strlen(str));
+}
+void logger::log(level lv, const char* str, size_t len) noexcept
 {
     if (len == 0)
     {
@@ -38,21 +90,21 @@ void logger::write(level lv, const char* str, size_t len) noexcept
         FlushFileBuffers(static_cast<HANDLE>(_file));
     }
 }
-void logger::writef(level lv, const char* fmt, ...) noexcept
+void logger::logf(level lv, const char* fmt, ...) noexcept
 {
     va_list arg_{};
     va_start(arg_, fmt);
-    writefv(lv, fmt, static_cast<void*>(arg_));
+    logfv(lv, fmt, static_cast<void*>(arg_));
     va_end(arg_);
 }
-void logger::writefv(level lv, const char* fmt, void* arg) noexcept
+void logger::logfv(level lv, const char* fmt, void* arg) noexcept
 {
     const int size_ = std::vsnprintf(nullptr, 0, fmt, static_cast<va_list>(arg));
     if (size_ > 0 && size_ < 64)
     {
         char buffer_[64] = {};
         std::vsnprintf(buffer_, 64, fmt, static_cast<va_list>(arg));
-        write(lv, buffer_, size_);
+        log(lv, buffer_, size_);
     }
     else if (size_ >= 64)
     {
@@ -61,12 +113,12 @@ void logger::writefv(level lv, const char* fmt, void* arg) noexcept
         if (heap_ != NULL)
         {
             std::vsnprintf(heap_, heap_size_, fmt, static_cast<va_list>(arg));
-            write(lv, heap_, size_);
+            log(lv, heap_, size_);
             ::HeapFree(::GetProcessHeap(), 0, heap_);
         }
         else
         {
-            write(level::error, "out of memory");
+            log(level::error, "out of memory");
         }
     }
     // else ???
@@ -76,35 +128,35 @@ void logger::debug(const char* fmt, ...) noexcept
 {
     va_list arg_{};
     va_start(arg_, fmt);
-    get().writefv(level::debug, fmt, static_cast<void*>(arg_));
+    get().logfv(level::debug, fmt, static_cast<void*>(arg_));
     va_end(arg_);
 }
 void logger::info(const char* fmt, ...) noexcept
 {
     va_list arg_{};
     va_start(arg_, fmt);
-    get().writefv(level::info, fmt, static_cast<void*>(arg_));
+    get().logfv(level::info, fmt, static_cast<void*>(arg_));
     va_end(arg_);
 }
 void logger::warn(const char* fmt, ...) noexcept
 {
     va_list arg_{};
     va_start(arg_, fmt);
-    get().writefv(level::warn, fmt, static_cast<void*>(arg_));
+    get().logfv(level::warn, fmt, static_cast<void*>(arg_));
     va_end(arg_);
 }
 void logger::error(const char* fmt, ...) noexcept
 {
     va_list arg_{};
     va_start(arg_, fmt);
-    get().writefv(level::error, fmt, static_cast<void*>(arg_));
+    get().logfv(level::error, fmt, static_cast<void*>(arg_));
     va_end(arg_);
 }
 void logger::fatal(const char* fmt, ...) noexcept
 {
     va_list arg_{};
     va_start(arg_, fmt);
-    get().writefv(level::fatal, fmt, static_cast<void*>(arg_));
+    get().logfv(level::fatal, fmt, static_cast<void*>(arg_));
     va_end(arg_);
 }
 
@@ -125,7 +177,7 @@ logger::logger() : _file(static_cast<void*>(INVALID_HANDLE_VALUE))
     }
     else
     {
-        write(level::error, "create file \"build.log\" failed");
+        log(level::error, "create file \"build.log\" failed");
     }
 }
 logger::~logger()

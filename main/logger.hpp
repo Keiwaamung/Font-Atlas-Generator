@@ -14,10 +14,14 @@ public:
         fatal = 4,
     };
 public:
-    void write(level lv, const char* str) noexcept;
-    void write(level lv, const char* str, size_t len) noexcept;
-    void writef(level lv, const char* fmt, ...) noexcept;
-    void writefv(level lv, const char* fmt, void* arg) noexcept;
+    void write(const char* str) noexcept;
+    void write(const char* str, size_t len) noexcept;
+    void writef(const char* fmt, ...) noexcept;
+    void writefv(const char* fmt, void* arg) noexcept;
+    void log(level lv, const char* str) noexcept;
+    void log(level lv, const char* str, size_t len) noexcept;
+    void logf(level lv, const char* fmt, ...) noexcept;
+    void logfv(level lv, const char* fmt, void* arg) noexcept;
 public:
     static void debug(const char* fmt, ...) noexcept;
     static void info(const char* fmt, ...) noexcept;
