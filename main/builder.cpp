@@ -141,6 +141,7 @@ namespace fontatlas
             uint32_t height;
             uint32_t font;
             // on texture
+            uint32_t texture;
             uint32_t channel;
             float uv_x;
             float uv_y;
@@ -207,6 +208,7 @@ namespace fontatlas
         std::sort(glyphlist_.begin(), glyphlist_.end(), comparer_);
         
         // generate font atlas
+        uint32_t total_texture_ = 0;
         {
             uint32_t image = 1;
             fontatlas::Texture tex(texture_width, texture_height);
@@ -319,6 +321,7 @@ namespace fontatlas
                         buffer += bitmap.pitch;
                     }
                     // save data
+                    info.texture = image;
                     info.channel = channel;
                     info.uv_x = (float)x;
                     info.uv_y = (float)y;
@@ -355,6 +358,7 @@ namespace fontatlas
             std::filesystem::create_directories(toWide(path));
             all_glyph();
             save_image();
+            total_texture_ = image - 1;
         }
         
         // get all glyph info all sort
@@ -384,6 +388,12 @@ namespace fontatlas
             if (file_.is_open())
             {
                 file_.write("local font = {}\n", 16);
+                {
+                    int n = std::snprintf(fmtbuf_, 1024,
+                        "font.textures=%u\n",
+                        total_texture_);
+                    file_.write(fmtbuf_, n);
+                }
                 for (uint32_t idx = 0; idx < fontlist_.size(); idx += 1)
                 {
                     file_.write("font[\"", 6);
@@ -410,13 +420,13 @@ namespace fontatlas
                         {
                             int n = std::snprintf(fmtbuf_, 1024,
                                 "  [%u]={"
-                                "%g,%g,%g,%g"
+                                "%u,3,%g,%g,%g,%g"
                                 ",%g,%g"
                                 ",%g,%g,%g"
                                 ",%g,%g,%g"
                                 "},\n",
                                 v.code,
-                                v.uv_x, v.uv_y, v.uv_width, v.uv_height,
+                                v.texture, v.uv_x, v.uv_y, v.uv_width, v.uv_height,
                                 v.draw_width, v.draw_height,
                                 v.h_pen_x, v.h_pen_y, v.h_advance,
                                 v.v_pen_x, v.v_pen_y, v.v_advance);
@@ -426,13 +436,13 @@ namespace fontatlas
                         {
                             int n = std::snprintf(fmtbuf_, 1024,
                                 "  [%u]={"
-                                "%u,%g,%g,%g,%g"
+                                "%u,%u,%g,%g,%g,%g"
                                 ",%g,%g"
                                 ",%g,%g,%g"
                                 ",%g,%g,%g"
                                 "},\n",
                                 v.code,
-                                v.channel, v.uv_x, v.uv_y, v.uv_width, v.uv_height,
+                                v.texture, v.channel, v.uv_x, v.uv_y, v.uv_width, v.uv_height,
                                 v.draw_width, v.draw_height,
                                 v.h_pen_x, v.h_pen_y, v.h_advance,
                                 v.v_pen_x, v.v_pen_y, v.v_advance);
