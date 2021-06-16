@@ -8,3 +8,4 @@ imgui.ini
 *.log
 !config.lua
 pyhwork/*
+engine/*
